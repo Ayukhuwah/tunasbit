@@ -1,0 +1,337 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TunasBit: Misi Bumi Hijau</title>
+  <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Comic+Neue&display=swap');
+    body {
+      font-family: 'Comic Neue', cursive;
+      background: linear-gradient(to bottom, #c8facc, #fff);
+      margin: 0;
+      padding: 20px;
+      background-image: url('https://cdn-icons-png.flaticon.com/512/2909/2909766.png');
+      background-repeat: repeat-x;
+      background-position: bottom;
+    }
+    h1, h2 { text-align: center; }
+    .story-section {
+      background: #fff8f0;
+      border-radius: 20px;
+      padding: 25px;
+      margin: 25px auto;
+      max-width: 420px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+    .step { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+    .step img { width: 40px; height: 40px; }
+    .step button, .step .done-btn { flex-grow: 1; }
+    button, .done-btn {
+      padding: 10px 20px;
+      background-color: #ffa500;
+      border: none;
+      color: white;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    }
+    .clicked { background-color: #ff7043 !important; }
+    input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+    }
+    .token, .congrats {
+      font-weight: bold;
+      text-align: center;
+      color: #2e7d32;
+      margin-top: 10px;
+    }
+    .assistant-container {
+      display: flex;
+      align-items: center;
+      margin-top: 15px;
+    }
+    lottie-player.mascot {
+      width: 180px;
+      height: 180px;
+      margin-right: 15px;
+    }
+    .bubble-message {
+      background: #d0f0d5;
+      padding: 10px 15px;
+      border-radius: 20px;
+      font-size: 0.95em;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    }
+    .hidden { display: none; }
+    .step-preview {
+      width: 100%;
+      margin-top: 10px;
+    }
+    .error-message {
+      color: red;
+      text-align: center;
+      margin-top: 10px;
+      font-size: 0.9em;
+    }
+    .retry-camera-btn {
+      background-color: #4caf50;
+      margin-top: 10px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <h1>🌱 TunasBit: Misi Bumi Hijau</h1>
+  <div class="story-section" id="intro-section">
+    <label for="username">Siapa Penjaga Pokok Ini?</label>
+    <input type="text" id="username" placeholder="Taip nama anda dan tekan Enter...">
+  </div>
+
+  <div class="story-section hidden" id="setup-section">
+    <h2>Misi Pertama Bermula</h2>
+    <div id="step-container"></div>
+    <video id="video" width="100%" autoplay muted playsinline></video>
+    <canvas id="canvas" width="300" height="200" class="hidden"></canvas>
+  </div>
+
+  <div class="assistant-container" id="assistant" style="display:none;">
+    <lottie-player class="mascot" id="mascot"
+      src="https://lottie.host/a03e4526-d00b-4b58-b02d-1370182235ba/PrBEBsePPg.json"
+      background="transparent" speed="1" loop autoplay>
+    </lottie-player>
+    <div class="bubble-message" id="mascot-msg">Hai! Saya BenihBot.</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const context = canvas.getContext("2d");
+    const video = document.getElementById("video");
+    const stepContainer = document.getElementById("step-container");
+
+    const steps = [
+      { label: "Langkah 1: Isi dan ratakan peat Moss dalam tray semaian", icon: "https://arleta.site/interactivelink/755/LANGKAH-1.png" },
+      { label: "Langkah 2: Buat lubang untuk memasukkan biji benih", icon: "https://arleta.site/interactivelink/755/LANGKAH-2.jpg" },
+      { label: "Langkah 3: Masukkan sebiji benih dalam setiap satu lubang", icon: "https://arleta.site/interactivelink/755/LANGKAH-3.png" },
+      { label: "Langkah 4: Siram semaian sehingga basah. Pastikan air tidak terlalu banyak!", icon: "https://arleta.site/interactivelink/755/LANGKAH-4.png" },
+      { label: "Langkah 5: Siram setiap hari Pagi dan petang", icon: "https://arleta.site/interactivelink/755/LANGKAH-5.png" },
+      { label: "Langkah 6: Pindahkan semaian ke pasu atau polibeg setelah anak pokok bercambah", icon: "https://arleta.site/interactivelink/755/LANGKAH-6.png" }
+    ];
+
+    let currentStep = 0;
+    const userId = `user_${Date.now()}`; // ID unik sementara
+
+    // Function to attempt camera access
+    function requestCameraAccess() {
+      const constraints = [
+        { video: { facingMode: "environment" } }, // Try back camera
+        { video: { facingMode: "user" } },       // Try front camera
+        { video: true }                          // Try any camera
+      ];
+
+      let constraintIndex = 0;
+
+      function tryNextConstraint() {
+        if (constraintIndex >= constraints.length) {
+          // All attempts failed
+          console.error("Kamera gagal dibuka: Tiada kamera tersedia atau kebenaran disekat");
+          const errorMsg = document.createElement("p");
+          errorMsg.className = "error-message";
+          errorMsg.innerHTML = "Kamera tidak dapat diakses. Sila benarkan akses kamera dalam tetapan pelayar atau pastikan peranti anda mempunyai kamera yang berfungsi.<br><br><button class='retry-camera-btn'>Cuba Semula</button>";
+          stepContainer.appendChild(errorMsg);
+
+          // Add retry button functionality
+          const retryBtn = errorMsg.querySelector(".retry-camera-btn");
+          retryBtn.onclick = () => {
+            errorMsg.remove();
+            requestCameraAccess();
+          };
+          return;
+        }
+
+        navigator.mediaDevices.getUserMedia(constraints[constraintIndex])
+          .then(stream => {
+            video.srcObject = stream;
+            video.style.display = "block"; // Ensure video is visible
+          })
+          .catch(error => {
+            console.error(`Gagal mengakses kamera dengan constraint ${constraintIndex + 1}:`, error.name, error.message);
+            constraintIndex++;
+            tryNextConstraint();
+          });
+      }
+
+      tryNextConstraint();
+    }
+
+    // Initiate camera access
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      requestCameraAccess();
+    } else {
+      console.error("API getUserMedia tidak disokong oleh pelayar ini");
+      const errorMsg = document.createElement("p");
+      errorMsg.className = "error-message";
+      errorMsg.textContent = "Pelayar anda tidak menyokong akses kamera. Sila gunakan pelayar moden seperti Chrome atau Safari.";
+      stepContainer.appendChild(errorMsg);
+    }
+
+    function speak(text) {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ms-MY';
+      u.pitch = 1.5;
+      u.rate = 0.9;
+      const setVoice = () => {
+        const voices = speechSynthesis.getVoices();
+        const femaleVoice = voices.find(v => v.name.toLowerCase().includes("female") || v.lang === 'ms-MY');
+        if (femaleVoice) u.voice = femaleVoice;
+        speechSynthesis.speak(u);
+      };
+      if (speechSynthesis.getVoices().length === 0) {
+        speechSynthesis.onvoiceschanged = setVoice;
+      } else {
+        setVoice();
+      }
+    }
+
+    async function saveSnapshot(userId, username, step, canvas) {
+      const imageData = canvas.toDataURL("image/png");
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Kelewatan 1 saat untuk elak had API
+      try {
+        const response = await fetch('https://script.google.com/macros/s/AKfycby5BP19WkFmumDttWQTiRVBGyTCqeFnwEj58xW4c0ZM2p2h92XP1JRHYtJjxLKJ20Qgkw/exec', {
+          method: 'POST',
+          body: JSON.stringify({ userId, username, step, imageData }),
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        if (result.status === 'success') {
+          return result.imageUrl;
+        } else {
+          throw new Error(result.message);
+        }
+      } catch (error) {
+        console.error("Gagal menyimpan gambar:", error);
+        const errorMsg = document.createElement("p");
+        errorMsg.className = "error-message";
+        errorMsg.textContent = "Gagal menyimpan gambar. Sila cuba lagi.";
+        stepContainer.appendChild(errorMsg);
+        return null;
+      }
+    }
+
+    function showStep(index) {
+      const step = steps[index];
+      stepContainer.innerHTML = '';
+
+      const title = document.createElement("p");
+      title.innerHTML = `<strong>Jom kita buat sama-sama! Imbas langkah bila kamu selesai!</strong>`;
+      stepContainer.appendChild(title);
+
+      const stepDiv = document.createElement("div");
+      stepDiv.classList.add("step");
+
+      const img = document.createElement("img");
+      img.src = step.icon;
+      img.alt = step.label;
+
+      const snapBtn = document.createElement("button");
+      snapBtn.innerText = step.label;
+      snapBtn.setAttribute("aria-label", `Ambil gambar untuk ${step.label}`);
+      snapBtn.onclick = async () => {
+        canvas.classList.remove("hidden");
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const username = document.getElementById("username").value || "Penjaga Pokok";
+        const snapshotUrl = await saveSnapshot(userId, username, currentStep, canvas);
+        if (snapshotUrl) {
+          const preview = document.createElement("img");
+          preview.src = snapshotUrl;
+          preview.className = "step-preview";
+          preview.alt = `Pratonton gambar untuk ${step.label}`;
+          stepContainer.appendChild(preview);
+        }
+
+        const doneBtn = document.createElement("button");
+        doneBtn.innerText = "Selesai langkah ini";
+        doneBtn.className = "done-btn clicked";
+        doneBtn.setAttribute("aria-label", "Selesaikan langkah ini");
+        doneBtn.onclick = () => {
+          currentStep++;
+          if (currentStep < steps.length) {
+            speak("Langkah seterusnya...");
+            setTimeout(() => showStep(currentStep), 1500);
+          } else {
+            speak("Tahniah! Misi selesai!");
+            stepContainer.innerHTML = '<p><strong>Anda telah berjaya menyelesaikan semua langkah! 🌱</strong></p>';
+          }
+        };
+        stepContainer.appendChild(doneBtn);
+      };
+
+      stepDiv.appendChild(img);
+      stepDiv.appendChild(snapBtn);
+      stepContainer.appendChild(stepDiv);
+
+      speak(step.label);
+    }
+
+    document.getElementById("username").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        const name = this.value.trim() || "Penjaga Pokok";
+        speak(`Hello ${name}! Selamat datang ke Tunas Bit! Jom kita mulakan misi kita bersama.`);
+        setTimeout(() => {
+          speak("Dalam misi ini, kamu akan ikut langkah demi langkah. Jom kita buat sama-sama! Imbas gambar bila kamu selesai setiap langkah.");
+          document.getElementById("intro-section").classList.add("hidden");
+          document.getElementById("setup-section").classList.remove("hidden");
+          document.getElementById("assistant").style.display = "flex";
+          document.getElementById("mascot-msg").innerText = `Hello ${name}! Jom kita mulakan.`;
+          showStep(currentStep);
+        }, 3500);
+      }
+    });
+  </script>
+</body>
+</html>
